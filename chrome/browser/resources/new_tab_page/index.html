@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orbit Browser NTP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"></span>
+          <span>Orbit</span>
+        </div>
+
+        <nav class="nav">
+          <a href="#">Home</a>
+          <a href="#">Explore</a>
+          <a href="#">Archive</a>
+          <a href="#">Profile</a>
+        </nav>
+
+        <div class="header-controls">
+          <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+            <span class="theme-icon">◐</span>
+          </button>
+          <button class="dev-menu" id="devMenu" title="Developer menu">
+            <span>⚙️</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="ntp">
+        <section class="hero">
+          <div class="hero-content">
+            <div class="badge">Sharp / Neon / Premium</div>
+
+            <h1>
+              Build
+              <span class="gradient">crystal</span>
+              <br />
+              in motion.
+            </h1>
+
+            <p>
+              Focused browsing with a premium dark glass aesthetic,
+              clean spacing, and a sharper digital rhythm.
+            </p>
+
+            <div class="cta-row">
+              <a href="#" class="btn primary">Launch</a>
+              <a href="#" class="btn secondary">Explore</a>
+            </div>
+          </div>
+
+          <div class="mini-panel">
+            <div class="mini-row">
+              <span class="label">Local time</span>
+              <span class="time" id="time">--:--</span>
+            </div>
+
+            <div class="mini-row">
+              <span class="label">Weather</span>
+              <span class="weather">24° / Clear</span>
+            </div>
+
+            <div class="chart">
+              <span class="bar a"></span>
+              <span class="bar b"></span>
+              <span class="bar c"></span>
+              <span class="bar d"></span>
+              <span class="bar e"></span>
+            </div>
+          </div>
+        </section>
+
+        <aside class="panel">
+          <div class="search-wrap">
+            <div class="searchbox">
+              <span class="search-icon"></span>
+              <input type="text" placeholder="Search or type a URL" />
+            </div>
+
+            <div class="quick-grid">
+              <a href="#" class="tile">
+                <span>Mail</span>
+                <span class="tile-icon">✦</span>
+              </a>
+              <a href="#" class="tile">
+                <span>Drive</span>
+                <span class="tile-icon">◈</span>
+              </a>
+              <a href="#" class="tile">
+                <span>News</span>
+                <span class="tile-icon">⬢</span>
+              </a>
+              <a href="#" class="tile">
+                <span>Docs</span>
+                <span class="tile-icon">◎</span>
+              </a>
+
+              <a href="#" class="tile">
+                <span>Stocks</span>
+                <span class="tile-icon">▣</span>
+              </a>
+              <a href="#" class="tile">
+                <span>Music</span>
+                <span class="tile-icon">♫</span>
+              </a>
+              <a href="#" class="tile">
+                <span>Cloud</span>
+                <span class="tile-icon">◌</span>
+              </a>
+              <a href="#" class="tile">
+                <span>Notes</span>
+                <span class="tile-icon">✎</span>
+              </a>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <!-- Developer Menu Modal -->
+    <div class="dev-modal" id="devModal">
+      <div class="dev-modal-content">
+        <div class="dev-modal-header">
+          <h2>Developer Menu</h2>
+          <button class="dev-close" id="devClose">✕</button>
+        </div>
+
+        <div class="dev-sections">
+          <section class="dev-section">
+            <h3>Themes</h3>
+            <div class="theme-list">
+              <button class="theme-btn active" data-theme="crystal">Crystal Sharp (Dark)</button>
+              <button class="theme-btn" data-theme="light">Light Mode</button>
+              <button class="theme-btn" data-theme="nord">Nord (Blue)</button>
+              <button class="theme-btn" data-theme="dracula">Dracula (Purple)</button>
+              <button class="theme-btn" data-theme="monokai">Monokai (Minimal)</button>
+            </div>
+          </section>
+
+          <section class="dev-section">
+            <h3>NTP Settings</h3>
+            <div class="dev-controls">
+              <label>
+                <input type="checkbox" id="showShortcuts" checked /> Show Shortcuts
+              </label>
+              <label>
+                <input type="checkbox" id="showClock" checked /> Show Clock
+              </label>
+              <label>
+                <input type="checkbox" id="enableAnimations" checked /> Enable Animations
+              </label>
+            </div>
+          </section>
+
+          <section class="dev-section">
+            <h3>Browser Information</h3>
+            <div class="dev-info">
+              <p><strong>Browser:</strong> Orbit Browser (Chromium 105.0.5195.24)</p>
+              <p><strong>Version:</strong> 105.0.5195.33</p>
+              <p><strong>Theme Engine:</strong> Crystal Sharp v1.0</p>
+              <p><strong>NTP Version:</strong> 1.0.0</p>
+            </div>
+          </section>
+
+          <section class="dev-section">
+            <h3>Debug Console</h3>
+            <button class="btn primary" id="openConsole">Open Console</button>
+            <button class="btn secondary" id="clearStorage">Clear Storage</button>
+          </section>
+
+          <section class="dev-section">
+            <h3>Storage</h3>
+            <div class="dev-info">
+              <p id="storageInfo">LocalStorage: 0 items</p>
+              <p id="cacheInfo">Cache: --</p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
