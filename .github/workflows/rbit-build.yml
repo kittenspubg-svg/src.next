@@ -1,28 +1,25 @@
-name: Orbit Android Build
+name: Orbit Browser ARM64 Build
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - kiwi
-      - feature/terminal-theme-ntp
+      - upgrade/chromium-130
     tags:
-      - "v*"
+      - 'v*'
 
 jobs:
-  android-build:
-    name: Build Android APK
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
     env:
-      CHROMIUM_OUT_DIR: out/Default
-      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+      CHROMIUM_OUT_DIR: out/Orbit
       ANDROID_HOME: ${{ github.workspace }}/android-sdk
       ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
 
     steps:
-      - name: Checkout source
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -33,8 +30,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Install base build deps
-        shell: bash
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -57,79 +53,166 @@ jobs:
             libxtst-dev \
             libdrm-dev
 
-      - name: Install depot_tools
+      - name: Setup depot_tools
         shell: bash
         run: |
+          echo "[Build] Cloning depot_tools..."
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git /tmp/depot_tools
           echo "/tmp/depot_tools" >> "$GITHUB_PATH"
+          export PATH="/tmp/depot_tools:$PATH"
+          
+          echo "[Build] Bootstrapping depot_tools..."
+          gclient --version || update_depot_tools
+          echo "[Build] depot_tools ready"
 
-      - name: Setup Android SDK
+      - name: Verify Chromium checkout
+        shell: bash
+        run: |
+          export PATH="/tmp/depot_tools:$PATH"
+          
+          echo "[Build] Checking Chromium checkout..."
+          test -f .gn || { echo "ERROR: .gn not found. Not a valid Chromium checkout."; exit 1; }
+          test -f DEPS || { echo "ERROR: DEPS not found. Not a valid Chromium checkout."; exit 1; }
+          test -d build || { echo "ERROR: build/ not found. Not a valid Chromium checkout."; exit 1; }
+          
+          echo "[Build] Chromium checkout verified"
+          ls -la .gn DEPS build/ | head -n 10
+
+      - name: Sync Chromium dependencies
+        shell: bash
+        run: |
+          export PATH="/tmp/depot_tools:$PATH"
+          
+          echo "[Build] Running gclient sync..."
+          gclient sync --jobs=8 --no-history
+          echo "[Build] Dependencies synced"
+
+      - name: Setup Android SDK directory
         shell: bash
         run: |
           mkdir -p "$ANDROID_HOME"
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "[Build] Android SDK directory ready: $ANDROID_HOME"
 
-      - name: Check repo build setup
-        shell: bash
-        run: |
-          echo "PWD=$PWD"
-          ls -la
-          echo "--- repo root ---"
-          find . -maxdepth 2 \( -name "BUILD.gn" -o -name "build" -o -name ".gn" \) | head -n 50 || true
-
-      - name: Install Chromium build deps
-        shell: bash
-        if: hashFiles('build/install-build-deps.sh') != ''
-        run: |
-          export PATH="/tmp/depot_tools:$PATH"
-          ./build/install-build-deps.sh --android
-
-      - name: Generate GN args
+      - name: Generate GN build config (ARM64)
         shell: bash
         run: |
           export PATH="/tmp/depot_tools:$PATH"
-
+          
+          echo "[Build] Creating output directory..."
           mkdir -p "$CHROMIUM_OUT_DIR"
+          
+          echo "[Build] Generating GN configuration for ARM64..."
+          gn gen "$CHROMIUM_OUT_DIR" --args='
+            target_os="android"
+            target_cpu="arm64"
+            is_debug=false
+            is_component_build=false
+            use_official_google_api_keys=false
+            enable_nacl=false
+          '
+          
+          echo "[Build] GN configuration complete"
+          gn args "$CHROMIUM_OUT_DIR" --list | head -n 20
 
-          if [ -f "build/config/BUILDCONFIG.gn" ]; then
-            echo "Detected Chromium-style build config"
-          fi
-
-          if command -v gn >/dev/null 2>&1; then
-            echo "gn exists"
-          else
-            echo "gn not found in PATH; this repo may need specific build tool bootstrap"
-          fi
-
-          # Recommended base config for Android APK builds.
-          # Adjust target_cpu and additional args if this repo uses a different target.
-          gn gen "$CHROMIUM_OUT_DIR" \
-            --args='is_debug=false target_os="android" target_cpu="arm64" use_official_google_api_keys=false enable_nacl=false'
-
-      - name: Build APK target
+      - name: Build chrome_public_apk (ARM64)
         shell: bash
         run: |
           export PATH="/tmp/depot_tools:$PATH"
-          ninja -C "$CHROMIUM_OUT_DIR" chrome_public_apk
+          
+          echo "[Build] Starting ninja build for chrome_public_apk..."
+          autoninja -C "$CHROMIUM_OUT_DIR" chrome_public_apk
+          echo "[Build] Build completed successfully"
 
       - name: Locate APK artifacts
         shell: bash
         run: |
-          find "$CHROMIUM_OUT_DIR" -type f \( -name "*.apk" -o -name "*.aab" \) | head -n 100 || true
+          echo "[Build] Searching for APK artifacts..."
+          find "$CHROMIUM_OUT_DIR" -type f \( -name "*.apk" -o -name "*.aab" \) -exec ls -lh {} \;
+          echo "[Build] APK search complete"
 
-      - name: Upload build artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: orbit-android-artifacts
-          path: |
-            out/Default/**/*.apk
-            out/Default/**/*.aab
-          if-no-files-found: warn
-
-      - name: Final status
+      - name: Prepare release artifact
         shell: bash
         run: |
-          echo "Orbit Android build workflow finished."
-          echo "Note: when this repo is synced to a full Chromium checkout, the GN/Ninja targets may need adjustment for the exact branch and dependencies used."
+          mkdir -p artifacts
+          
+          echo "[Build] Finding APK..."
+          APK=$(find "$CHROMIUM_OUT_DIR" -type f -name "*.apk" | head -n 1)
+          
+          if [ -z "$APK" ]; then
+            echo "ERROR: No APK found after build"
+            exit 1
+          fi
+          
+          echo "[Build] APK found: $APK"
+          
+          # Determine artifact name
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="dev-${{ github.run_number }}"
+          fi
+          
+          ARTIFACT_NAME="OrbitBrowser-v${VERSION}-arm64.apk"
+          cp "$APK" "artifacts/$ARTIFACT_NAME"
+          
+          echo "[Build] Artifact ready: $ARTIFACT_NAME"
+          ls -lh "artifacts/"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrbitBrowser-arm64
+          path: artifacts/*.apk
+          retention-days: 30
+
+      - name: Create GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/*.apk
+          body: |
+            # Orbit Browser ${{ github.ref_name }}
+            
+            ## Build Details
+            - **Base**: Chromium 130+
+            - **Architecture**: ARM64 (64-bit)
+            - **Build Type**: Release
+            - **Target**: chrome_public_apk
+            
+            ## Installation
+            1. Download the APK from assets below
+            2. Enable "Install unknown apps" on your Android device
+            3. Install the APK
+            4. Open Orbit Browser
+            
+            ## Features
+            - Crystal Sharp premium dark theme
+            - Custom Orbit New Tab Page
+            - Theme switcher (5 variants)
+            - Developer menu
+            - Full Chromium 130+ engine
+            
+            ## System Requirements
+            - Android 10+ (API 29+)
+            - ARM64 processor
+            - 2GB RAM minimum (4GB recommended)
+            - 100MB free storage
+            
+            See [CHANGELOG.md](CHANGELOG.md) for full release notes.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build summary
+        if: always()
+        shell: bash
+        run: |
+          echo "=== Orbit Browser Build Summary ==="
+          echo "Status: ${{ job.status }}"
+          echo "Branch: ${{ github.ref }}"
+          echo "Run: ${{ github.run_number }}"
+          echo "Actor: ${{ github.actor }}"
+          echo ""
+          echo "Artifacts:"
+          ls -lh artifacts/ 2>/dev/null || echo "No artifacts generated"
